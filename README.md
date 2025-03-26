@@ -1,6 +1,6 @@
 # G15.2_C_center
 
-These codes are adapted from G13 to communcate with the devices in G15.2.
+These codes are adapted from G13 to communicate with the devices in G15.2.
 
 A few updates:
 1. changed form scatter plot to pixel images
