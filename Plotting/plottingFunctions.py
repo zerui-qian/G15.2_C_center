@@ -178,8 +178,8 @@ def plot_APDscan(filename, size=(14,4), clip=False, clipNumber=1000):
     # Logarithmic scale plot
     scatter_log = axes[1].pcolormesh(X, Y, apd_grid, cmap='magma', norm=LogNorm(vmin=min(apd), vmax=max(apd)))
     colorbar_log = fig.colorbar(scatter_log, ax=axes[1], label='Count rate (Hz, log scale)')
-    axes[1].set_xlabel('X-coordinate (V)')
-    axes[1].set_ylabel('Y-coordinate (V)')
+    axes[1].set_xlabel('SCx (V)')
+    axes[1].set_ylabel('SCy (V)')
     axes[1].set_title(f'APD Map (Logarithmic Scale)\n {os.path.basename(filename)}')
     
     for ax in axes:
@@ -355,26 +355,84 @@ def plot_APDscan_without_every_second_row(filename, clip=False, clipNumber=1000,
 
     return fig
 
-def plot_spectrum(filename):
+def nm_to_eV(wlens):
+    h = 6.62607015e-34
+    c = 299792458
+    e = 1.602176634e-19
+    return (1e9*h*c/e) / wlens
+
+
+def plot_spectrum(filename, xlim=(1.7,2.3), ymax=None):
     """Create a plot for spectrum data and return the figure."""
     x = save.load_data(filename)
-    wavelengths = x['wavelength']
-    signals = x['intensity']
+    wavelengths = np.array(x['wavelength'])
+    signals = np.array(x['intensity'])
+    
+    # Convert to energy
+    energy = nm_to_eV(wavelengths)
 
-    # Create the figure
-    fig, ax = plt.subplots(figsize=(10, 6))
+    # Debug prints
+    print(f"Loaded wavelengths: {wavelengths.shape}, min={np.min(wavelengths)}, max={np.max(wavelengths)}")
+    print(f"Converted energy: {energy.shape}, min={np.min(energy)}, max={np.max(energy)}")
+    print(f"Raw signals: {signals.shape}, min={np.min(signals)}, max={np.max(signals)}")
 
-    for i, wavelengths_i in enumerate(wavelengths):
-        ax.plot(wavelengths_i, np.abs(signals[i]), color="blue", linestyle="-")
+    # Fix signal shape
+    if signals.ndim == 3 and signals.shape[0] == 1:
+        signals = signals[0]
+    signals = signals.squeeze()
+    
+    # Ensure correct shapes
+    if energy.shape != signals.shape:
+        print("Mismatch in shapes! Flattening arrays.")
+        energy = energy.flatten()
+        signals = signals.flatten()
 
-    # Add labels and title
-    ax.set_title(f'Spectrum measurement\n {os.path.basename(filename)}')
-    ax.set_xlabel("Wavelength (nm)")
-    ax.set_ylabel("Signal (a.u.)")
-    ax.grid(True)
-    ax.legend()
+    # Debugging after processing
+    print(f"Processed signals: {signals.shape}, min={np.min(signals)}, max={np.max(signals)}")
 
-    # Return the figure
+    fig = plt.figure(figsize=(12,5.5))
+    plt.plot(energy, np.abs(signals), color="k", linewidth=0.9)
+    
+    # Auto-adjust ymax if not provided
+    ymax = np.max(np.abs(signals)) * 1.1 if ymax is None else ymax
+    plt.ylim(0, ymax)
+
+    plt.title(f'Spectrum measurement {os.path.basename(filename)}')
+    plt.xlabel("E (eV)")
+    plt.ylabel("Counts")
+    plt.grid(True)
+    
+    ax1 = plt.gca()
+    ax2 = ax1.twiny()
+    
+    wl_ticks = np.arange(540, 725, 10)
+    energy_ticks_for_wl = nm_to_eV(wl_ticks)
+    
+    ax1.set_xticks(np.arange(xlim[0], xlim[1], 0.05))
+    ax1.set_xlim(xlim)
+    
+    ax2.set_xticks(energy_ticks_for_wl)
+    ax2.set_xticklabels([f'{e:.0f}' for e in wl_ticks])
+    ax2.set_xlim(xlim)
+    ax2.set_xlabel(r'$\lambda$ (nm)')
+
+    return fig
+
+def plot_angles(filename, ymin=50000):
+    x = save.load_data(filename)
+    angles = np.array(x['angles']) * 2
+    angles = np.deg2rad(angles)
+    counts = np.array(x['apd_counts'])
+
+    fig = plt.figure(figsize=(4,4))
+    ax = plt.subplot(111, polar=True)
+    ax.plot(angles, counts, "k.")
+    ax.set_theta_zero_location("N")
+    ax.set_theta_direction(-1)
+    ax.set_rlim(ymin, max(counts))
+    ax.set_title(f'Polarization measurement {os.path.basename(filename)}')
+    plt.grid(True)
+
     return fig
 
 
